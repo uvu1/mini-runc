@@ -8,6 +8,7 @@ use std::ffi::CString;
 use std::fs;
 
 use crate::init::run_init;
+use crate::network;
 use crate::rootfs::{setup_dev, setup_tmp};
 
 pub fn create_container(command: &[CString]) -> Result<(), Box<dyn Error>> {
@@ -47,8 +48,11 @@ pub fn create_container(command: &[CString]) -> Result<(), Box<dyn Error>> {
         }
 
         ForkResult::Child => {
+            network::isolate()?;
+
             let rootfs = std::fs::canonicalize("rootfs")?;
             let old_root = rootfs.join(".old_root");
+            fs::create_dir_all(&old_root)?;
 
             mount(
                 Some(rootfs.as_path()),
