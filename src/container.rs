@@ -60,8 +60,8 @@ pub fn create_container(command: &[CString]) -> Result<(), Box<dyn Error>> {
 
             pivot_root(&rootfs, &old_root)?;
             std::env::set_current_dir("/")?;
-            umount2("./old_root", MntFlags::MNT_DETACH)?;
-            fs::remove_dir("./old_root")?;
+            umount2("/.old_root", MntFlags::MNT_DETACH)?;
+            fs::remove_dir("/.old_root")?;
 
             mount(
                 Some("proc"),
