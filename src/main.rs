@@ -1,5 +1,6 @@
 mod container;
 mod init;
+mod network;
 mod rootfs;
 
 use std::env;
@@ -19,7 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if command.is_empty() {
         return Err("command is required".into());
     }
-    let _ = container::create_container(&command);
+    container::create_container(&command)?;
 
     Ok(())
 }
