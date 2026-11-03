@@ -5,5 +5,8 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.6.7", features = ["derive"] }
+futures-util = "0.3.34"
 nix = { version = "0.31.3", features = ["sched", "mount", "process", "hostname", "signal", "fs"] }
+rtnetlink = "0.23.0"
 signal-hook = "0.4.6"
+tokio = { version = "1.54.1", features = ["rt", "net"] }
