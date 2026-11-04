@@ -95,6 +95,8 @@ pub fn create_container(command: &[CString]) -> Result<(), Box<dyn Error>> {
 
             drop(child_sock);
 
+            network::setup_container()?;
+
             let rootfs = std::fs::canonicalize("rootfs")?;
             let old_root = rootfs.join(".old_root");
             fs::create_dir_all(&old_root)?;
