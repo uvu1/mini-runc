@@ -6,6 +6,8 @@ use nix::unistd::{ForkResult, fork, pivot_root, sethostname};
 use std::error::Error;
 use std::ffi::CString;
 use std::fs;
+use std::io::{Read, Write};
+use std::os::unix::net::UnixStream;
 
 use crate::init::run_init;
 use crate::network;
@@ -28,15 +30,46 @@ pub fn create_container(command: &[CString]) -> Result<(), Box<dyn Error>> {
     )?; // make mount propagation private
 
     sethostname("mini-runc")?;
+
+    let (mut parent_sock, mut child_sock) = UnixStream::pair()?;
+
     match unsafe { fork()? } {
         /*
          * fork() syscall creates copy of itselfs as child-process.
          * parent process waits exit or signaled of child process.
          * */
         ForkResult::Parent { child } => {
+            drop(child_sock);
             println!("[parent] Child PID: {child}");
 
-            match waitpid(child, None)? {
+            let setup_result = || -> Result<(), Box<dyn Error>> {
+                let mut ready = [0u8; 1];
+                parent_sock.read_exact(&mut ready)?;
+
+                if ready != [b'R'] {
+                    return Err("Invalid READY Message".into());
+                }
+
+                network::setup_host(child)?;
+
+                parent_sock.write_all(b"G")?;
+
+                Ok(())
+            }();
+
+            if let Err(err) = setup_result {
+                drop(parent_sock);
+                let _ = network::cleanup_host();
+                let _ = waitpid(child, None);
+                return Err(err);
+            }
+
+            drop(parent_sock);
+
+            let status = waitpid(child, None);
+            network::cleanup_host()?;
+
+            match status? {
                 WaitStatus::Exited(_, code) => std::process::exit(code),
                 WaitStatus::Signaled(_, signal, _) => {
                     std::process::exit(128 + signal as i32);
@@ -48,7 +81,19 @@ pub fn create_container(command: &[CString]) -> Result<(), Box<dyn Error>> {
         }
 
         ForkResult::Child => {
+            drop(parent_sock);
             network::isolate()?;
+
+            child_sock.write_all(b"R")?;
+
+            let mut response = [0u8; 1];
+            child_sock.read_exact(&mut response)?;
+
+            if response != [b'G'] {
+                return Err("Invalid CONTINUE Message".into());
+            }
+
+            drop(child_sock);
 
             let rootfs = std::fs::canonicalize("rootfs")?;
             let old_root = rootfs.join(".old_root");

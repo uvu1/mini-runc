@@ -49,3 +49,28 @@ pub fn setup_host(child: Pid) -> Result<(), Box<dyn Error>> {
         Ok(())
     })
 }
+
+pub fn cleanup_host() -> Result<(), Box<dyn Error>> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_io()
+        .build()?;
+
+    rt.block_on(async {
+        let (connection, handle, _) = new_connection()?;
+        tokio::spawn(connection);
+
+        let link = handle
+            .link()
+            .get()
+            .match_name("mr-host0")
+            .execute()
+            .try_next()
+            .await?;
+
+        if let Some(link) = link {
+            handle.link().del(link.header.index).execute().await?;
+        }
+
+        Ok(())
+    })
+}
